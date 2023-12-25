@@ -1,0 +1,495 @@
+---
+title: "Project 2 Econ 104"
+author: "Sia Phulambrikar,  Ahnaf Tamid, Sofia Giorgi, Michael Sorooshian"
+date: "2023-11-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(dynlm)
+library(AER)
+data("USGasB")
+library(forecast)
+library(tseries)
+```
+
+
+# Q1. Exploratory Analysis 
+
+## (a) Briefly discuss the question you are trying to answer.
+
+We are trying to answer how, from 1950 to 1987, the stock of cars and retail price of gasoline affect the consumption of gasoline.
+
+## (b) Cite the dataset and give a summary of what the dataset is about
+
+
+The USGasB dataset can be found in the AER package, as shown in this document: https://cran.r-project.org/web/packages/AER/AER.pdf. It is a time-series dataset showing the stock of cars (cars), consumption of gasoline (gas), retail price of gasoline (price), population (population), real gross national product (gnp), and deflator (deflator), each year from 1950 to 1987.
+
+
+## (c) First check for completeness and consistency of the data (if there are NAs or missing observations, replace with the value of the previous observation; make a note of this)   
+
+```{r}
+sum(is.na(USGasB))
+summary(USGasB) 
+```
+
+There are no observations marked as NA, and the data presents as complete and consistent.
+
+
+## (d) Provide descriptive analyses of your variables. This should include the histogram with overlying density, boxplots, cross correlation. All figures/statistics must include comments.
+
+```{r}
+hist(USGasB[,"gas"], prob = TRUE, col="lightblue", main = "Histogram of Gas",
+     xlab = "Consumption of Gasoline")
+lines(density(USGasB[,"gas"]), col = "blue", lwd=2)
+```
+
+
+The consumption of gasoline forms a bimodal distribution. This indicates that there are roughly two different groups in the consumption of gasoline, one that possibly consumes less gas and one that consumes more.
+
+
+```{r}
+hist(USGasB[,"cars"], prob = TRUE, col="lightblue", main = "Histogram of Cars",
+     xlab = "Stock of Cars")
+lines(density(USGasB[,"cars"]), col = "blue", lwd=2)
+```
+
+
+The stock of cars shows a bimodal distribution as well. The group with less cars seems to have more density.
+
+
+```{r}
+hist(USGasB[,"price"], prob = TRUE, col="lightblue", main = "Histogram of Price",
+     xlab = "Retail Price of Gasoline")
+lines(density(USGasB[,"price"]), col = "blue", lwd=2)
+```
+
+
+The retail price of gasoline is highly skewed to the right. This means that the retail price of gasoline tends to be on the lower end, but occasionally goes higher.
+
+
+```{r}
+USGasB_vars <- USGasB[, c("gas", "cars", "price")]
+summary(USGasB_vars)
+```
+
+
+This summary of the key variables gas, cars, and price further demonstrates how each is bimodal, bimodal, and skewed, respectively.
+
+
+```{r}
+boxplot(USGasB[,"gas"], main = "Boxplot of Gas", col="lightblue")
+```
+
+
+As a boxplot, gas's bimodal distribution appears more normal. The minimum is 40,617,285, the first quartile is 61,830,254, median is 83,094,370, third quartile is 101,384,955, and maximum is 113,625,960.
+
+
+```{r}
+boxplot(USGasB[,"cars"], main = "Boxplot of Cars", col="lightblue")
+```
+
+
+
+As previously indicated in the histogram, the stock of cars is bimodal but appears more normal in the boxplot. The minimum is 49,195,212, first quartile is 71,982,986, median is 102,300,566, third quartile is 145,244,051, and the maximum is 177,922,000.
+
+
+```{r}
+boxplot(USGasB[,"price"], main = "Boxplot of Price", col="lightblue")
+```
+
+
+Price has a highly skewed boxplot, with its minimum at 0.2720 and maximum at 1.3110, and yet the median is 0.3525.
+
+
+```{r}
+matrix <- cor(USGasB_vars)
+print(matrix)
+```
+
+
+
+This correlation matrix is helpful in understanding that both cars and price are highly correlated with gas. Interestingly, cars and price are also very highly correlated with one another.
+
+
+# Data Pre-Processing 
+
+Gas = dependent variable
+Cars= independent variable
+price= independent variable  
+
+
+
+```{r}
+head(USGasB)
+summary(USGasB)
+```
+
+
+Is "USGasB" a time series data?
+
+```{r}
+is.ts(USGasB)
+```
+
+
+$\vspace{25cm}$
+
+## (a) With tsdisplay or ggtsdisplay, for each variable, use its time series plot, ACF and PACF to comment on its stationarity (you can also decompose the time series; note if there is seasonality). To supplement this, use the appropriate Dickey-Fuller (unit root) test, to determine whether or not it is stationary. Note using its PACF what the suspected order might be.
+
+```{r}
+#tsdisplay of Cars
+cars.ts <- ts(USGasB[,"cars"])
+tsdisplay(cars.ts)
+```
+
+\textbf{Stationary Analysis}
+
+Cars: Looking at the plot it looks to be trending therefore it is not stationary. The PACF suggests lag order of 1.   
+
+The time series plot looks to be trending because it increases with more observations, meaning this is an upward trend which suggests that as time increases so will the variable. So the mean and variance aren't constant.
+
+$\vspace{7cm}$ 
+
+
+```{r}
+#tsdisplay of gas
+gas.ts <- ts(USGasB[,"gas"])
+tsdisplay(gas.ts)
+```
+
+
+Gas: Looking at the plot it looks to be mostly trending therefore it is not stationary. The PACF suggests lag order of 1, since that's where the plot shows it cuts off. The time series plot looks to be trending, looks a lot like the  Cars plot of time series, meaning this is an upward trend which suggests that as time increases so will the variable. So the mean and variance aren't constant.
+
+$\vspace{7cm}$
+
+```{r}
+#tsdisplay of price
+price.ts <- ts(USGasB[,"price"])
+tsdisplay(price.ts)
+```
+
+\textbf{Stationary Analysis}
+
+Price:  Looking at the plot it looks to be mostly trending with a bit of dip towards the end, therefore not stationary.         The PACF suggests lag order of 1. It is almost consistent from observation 1 to 20 but after that it starts            resembling the random walk plot, which suggests that is likely non stationary. So the mean and variance                aren't constant.
+
+$\vspace{7cm}$
+
+\textbf{PACF summary}
+
+```{r}
+cars_pacf <- pacf(cars.ts)
+cars_pacf
+```
+$\vspace{7cm}$
+
+```{r}
+gas_pacf <- pacf(gas.ts)
+gas_pacf
+```
+$\vspace{7cm}$
+
+```{r}
+price_pacf <- pacf(price.ts)
+price_pacf
+```
+
+
+$\vspace{7cm}$
+```{r}
+#Dickey Fuller Unit Root test
+#Unit root test for Cars
+adf_test_cars <- adf.test(cars.ts)
+adf_test_cars
+
+#Unit root test for Gas
+adf_test_gas <- adf.test(gas.ts)
+adf_test_gas
+
+#Unit root test for Price
+adf_test_price <- adf.test(price.ts)
+adf_test_price
+```
+
+\textbf{Interpreting Stationarity Using Unit Root Test}
+
+Hypothesis:
+
+$H0$ : The data has unit root test and is non-stationary
+
+$H1$ : The data does not have unit root test and is stationary
+
+For Cars: p-value = 0.5597 > 0.05: Fail to reject the null hypothesis (H0), the data has unit root and is non-stationary
+
+For Gas: p-value = 0.644 > 0.05: Fail to reject the null hypothesis (H0), the data has unit root and is non-stationary
+
+For Price: p-value = 0.4953 > 0.05: Fail to reject the null hypothesis (H0), the data has unit root and is non-stationary
+
+Note: As this data is yearly data, we don't have to decompose it meaning there isn't seasonality involved in the data.
+
+$\vspace{10cm}$
+
+
+## (b) If it is not stationary, determine the level of differencing to make our series stationary. We can use the ndiffs function which performs a unit-root test to determine this. After this, difference your data to ascertain a stationary time series. Re-do part a) for your differenced time series and comment on the time series plot, ACF and PACF. Recall that the time series models we’ve observed rely on stationarity.
+
+```{r}
+#Differencing test for Cars
+diff_cars <- ndiffs(cars.ts)
+diff_cars
+```
+
+For Cars: The value of 2, suggests that there needs to be a second order differencing
+
+```{r}
+#Differencing test for gas
+diff_gas <- ndiffs(gas.ts)
+diff_gas
+```
+
+For Gas: The value of 1, suggests that there needs to be a first order differencing
+
+```{r}
+#Differencing test for price
+
+diff_price <- ndiffs(price.ts)
+diff_price
+```
+
+For Price: The value of 1, suggests that there needs to be a first order differencing.
+
+Note: Even though the "ndiffs" gave result of 2,1,1 for car, gas, price, respectively. I used second order differencing for all of them to make it consistent, and so it doesn't cause inconsistencies when it comes to creating AR models.
+
+$\vspace{10cm}$
+
+Using timeseries, ACF and PACF on differenced/stationary Variables
+
+```{r}
+#timeseries, ACF and PACF of Cars
+differenced_cars <- diff(cars.ts, lag = 1, difference = 2)
+tsdisplay(differenced_cars)
+```
+
+\textbf{Stationary Analysis of Differenced Variables}
+
+For Cars: Although the plot may look like it's a random walk, it seems to be mean reverting, meaning that the time               series has a tendency to move toward a certain mean, so the mean and variance will be constant, therefore the           plot suggests Stationarity. Around the 1970's alot of policies and oil related events caused inconsistencies           in the stock of cars.
+
+$\vspace{15cm}$
+
+```{r}
+#timeseries, ACF and PACF of gas
+differenced_gas <- diff(gas.ts, lag = 1, difference = 2)
+tsdisplay(differenced_gas)
+```
+
+
+For Gas: As seen with the plot of the Cars time series, the plot of gas time series is also very similar in the sense           that it looks like a random walk, but it seems to be mean reverting, also note that there is huge dip around           observation 30 but right after there's a huge spike followed by a dip, this could also mean, mean reverting            meaning that the time series has a tendency to move toward a certain mean, so the mean and variance will be            constant, therefore the plot suggests Stationarity. 
+         Another explanation for the dip and spike around observation 30 to 35 is that the arab oil embargo around 1973          caused fuel shortages and a spike in oil prices with long lines at gas stations, which is a real world                 explanation for the inconsistency
+
+
+$\vspace{15cm}$
+
+```{r}
+#timeseries, ACF and PACF of price
+differenced_price <- diff(price.ts, lag = 1, difference = 2)
+tsdisplay(differenced_price)
+```
+
+For Price: The plot looks to be very consistent up until observation 25 but after that it seems to be mean reverting,             so all in all, it suggests that the time series has a tendency to move toward a certain mean, so the mean              and variance will be constant,therefore the plot suggests Stationarity.
+           The real world explanation were the factors with OPEC and gas shortages in the U.S that caused it to go up             and down in the time series plot, since they were unusual events.
+
+
+$\vspace{15cm}$
+
+\textbf{Unit root test on differenced variables}
+
+
+```{r, warning=FALSE}
+#Dickey Fuller Unit Root test
+#Unit root test for Cars
+adf_test_cars_differenced <- adf.test(differenced_cars)
+adf_test_cars_differenced
+
+
+
+#Unit root test for Gas
+adf_test_gas_differenced <- adf.test(differenced_gas)
+adf_test_gas_differenced
+
+
+
+#Unit root test for Price
+adf_test_price_differenced <- adf.test(differenced_price)
+adf_test_price_differenced
+```
+
+\textbf{Interpreting Stationary Using Unit Root Test after differencing}
+
+Hypothesis:
+
+$H0$ : The data has unit root test and is non-stationary
+$H1$ : The data does not have unit root test and is stationary
+
+For Cars: p-value = 0.01343 < 0.05: reject the null hypothesis (H0), The data does not have unit root test and is stationary
+
+For Gas: p-value = 0.01 < 0.05: reject the null hypothesis (H0), The data does not have unit root test and is stationary
+
+For Price: p-value = 0.197  > 0.05: Fail to reject the null hypothesis (H0), The data has unit root test and is non-stationary
+
+$\vspace{15cm}$
+
+Note: For Price: $Professor Boswell$ said it's ok that the p-value is greater than 0.05. Since sometimes the ADF                        doesn't capture all of the situation or detect contextual anomalies that might have occurred. It                        doesn't necessarily mean it is non-stationary.
+
+$\vspace{0.5cm}$
+
+Differencing means removing the trends and as seen from the time series plot before differencing that there was trending, we had to remove it in order to make the variables stationary. In order to confirm that they are stationary we had to use the Unit root test to confirm that the differenced variables do in fact have constant mean and variances, which means they are stationary. But ADF is not always accurate or cannot factor in the anomalous events so we got a p-value that would suggest that Price is non-stationary, but its not.
+
+$\vspace{1.5cm}$
+
+Extra Note:
+
+For the sake of transparency: Referring to the p-value of Price and the fact that if we difference it 3 times, we end up with stationarity.
+
+```{r}
+#timeseries, ACF and PACF of price
+differenced_price3 <- diff(price.ts, lag = 1, difference = 3)
+tsdisplay(differenced_price3)
+```
+
+
+```{r}
+#Unit root test for Price
+adf_test_price_differenced <- adf.test(differenced_price3)
+adf_test_price_differenced
+```
+
+For Price: p-value = 0.02897 < 0.05: reject the null hypothesis (H0), The data does not have unit root test and is stationary.
+
+The reason we don't want to difference it 3 times is because we might end up over-differencing which can make it difficult to identify meaningful patterns. We also learned from ndiff that we should difference it once but in-order to be consistent we differenced all the variable twice. But we don't want to do it 3 times because that will be over-differencing, which might take away any meaningful pattern. Also, the ADF will struggle to provide accurate results if the data provided is more complex and has anomalous characteristics.
+
+
+
+# Feature Generation, Model Testing and Forecasting
+
+## (a) Fit an AR(p) model to the data (using part 2(a), AIC or some built in R function)
+
+```{r}
+df <- USGasB[,c('cars','gas', 'price')]
+tsdisplay(df[,'gas'], main = "ACF and PACF of Gasoline Consumption")
+```
+
+Using the `tsdisplay` ACF and PACF plots from part 2(a), we see that ACF is steadily decreasing to 0, while PACF exhibits one strong spike at lag 1 and cuts off after. This would be typical of an AR(1) process. Thus, we try fitting an AR(1) model as follows:  
+
+
+```{r}
+ar1 <- arima(df[,'gas'], order = c(1,0,0))
+print(ar1)
+
+autoplot(forecast(ar1, h = 5), ylab = "Gasoline Consumption (in 1000 gallons)")
+```
+
+The model estimated is as follows:
+
+$$Y_t = 75906045 + 0.9959 Y_{t-1} + e_t$$
+
+## (b) Plot and comment on the ACF of the residuals of the model chosen in 3(a). If the model is properly fit, then we should see no autocorrelations in the residuals. Carry out a formal test for autocorrelation and comment on the results.  
+
+
+We can save the residuals from this model and check for autocorrelation in the residuals.
+
+```{r}
+resid <- ar1$residuals
+acf(resid, main = "ACF of Residuals from AR(1) Model") 
+
+#objective tests
+res_mod <- lm(resid ~ lag(resid))
+bgtest(res_mod, order = 1)
+dwtest(res_mod)
+```
+
+
+The ACF plot shows two peaks at Lag 0 and at Lag 1, while the rest of the values are not statistically significant. While there seems to be no autocorrelation, we can obtain a better conclusion by using the Durbin Watson Test or the Breusch-Godfrey Test.  
+
+
+The Breusch-Godfrey Test returns a p-value of 0.2504. Since this is greater than $a = 0.05$, we fail to reject the null hypothesis, and cannot conclude that there is serial correlation between residuals.    
+
+
+We can also use results from the Durbin-Watson Test, which tests for serial correlation of order = 1. The p-value is much higher than our significance level of 5%, thus we cannot reject $H_0$ in favor of $H_1$, which states that true autocorrelation is greater than 0.  
+
+
+## (c) Using the appropriate predictors, fit an ARDL(p,q) model to the data and repeat step (b) in part 3.
+
+We first create a model with the first 3 lags of `gas`, `price`, and `cars` variables from the dataset. We can check which coefficients are close to 0 and remove them, retaining others.  
+
+
+```{r}
+mod_lag1 <- dynlm(gas ~ L(gas,1:3) + L(price, 0:3) + L(cars, 0:3), data = df)
+mod_lag1
+```
+
+
+If we drop variables $gas_{t-3}$ and $cars_{t-2}$, $cars_{t-3}$, we get the following regression:
+
+$$gas_t = 2.685*10^{6} + 1.065 gas_{t-1} - 0.264 gas_{t-2} - 1.497*10^{7} price_t + 1.159*10^7 price_{t-1} +$$
+
+$$2.302 * 10^{6} price_{t-2} -8.251*10^6 price_{t-3} +  9.704 cars_t - 1.043 cars_{t-1}$$
+
+
+We can also experiment with models of different lags and check AIC/BIC values.  
+
+
+```{r}
+mod_lag2 <- dynlm(gas ~ L(gas,1:2) + L(price, 0:2) + L(cars, 0:2), data = df)
+mod_lag3 <- dynlm(gas ~ L(gas,1:3) + L(price, 0:3), data = df)
+mod_lag4 <- dynlm(gas ~ L(gas,1:3) + L(cars, 0:3), data = df)
+
+
+AIC(mod_lag1, mod_lag2, mod_lag3, mod_lag4)
+BIC(mod_lag1, mod_lag2, mod_lag3, mod_lag4)
+```
+
+We get the lowest value of AIC for `mod_lag1`, which was the ARDL (3,3,3) model with up to 3 lags of the dependant and independant variable. However, BIC gives us the lowest value for `mod_lag3`, which was the ARDL(3,3) model with only lags of gas and price. We should go with the result given by BIC and select `mod_lag3`, since it harshly penalizes models which include extra variables. If we need to include more variables, or more lags of the dependant variable, we will see this in the serial correlation of errors.   
+
+```{r}
+resid <- mod_lag3$residuals
+tsdisplay(resid, main = "ACF/PACF of Residuals from ARDL(3,3) Model")
+res_mod2 <- lm(resid ~ lag(resid, 1))
+bgtest(res_mod2, order = 1)
+dwtest(res_mod2)
+mod_lag3
+```
+
+
+To check residuals for serial correlation, we used the ACF/PACF plots, the DW Test and the BG Test.   
+- ACF/PACF show no statistically significant peaks, thus there is no visual evidence of autocorrelation.  
+- `bgtest` gives us a p-value of r`bgtest(res_mod2, order = 1)$p.value`, which is greater than the significance level of 5%, and thus we fail to reject the null hypothesis of no autocorrelation.   
+
+- `dwtest` gives us a p-value of r`dwtest(res_mod2)$p.value`, which is also much higher than the significance level, and we do not have enough evidence to conclude autocorrelated errors. 
+
+
+Hence, we have created an ARDL(3,3) model with errors that are not autocorrelated. The model is:  
+
+$$gas_t = 1.068*10^6 + 1.014gas_{t-1} - 0.118gas_{t-2} + 0.166 gas_{t-3} -1.957*10^7 price_t + $$
+
+$$1.090 price_{t-1} - 3.455*10^5 price_{t-2} + 2.647*10^6 price_{t-3}$$
+
+# Q4. Provide a brief summary of your findings and state which model performs better.  
+ 
+
+```{r}
+AIC(ar1, mod_lag3)
+BIC(ar1, mod_lag3)
+```
+
+In summary, we looked at two models—the ARDL(3,3) and the AR(1) model—for predicting gasoline consumption. Analysis of ACF/PACF plots, the Breusch-Godfrey Test, and the Durbin Watson test consistently demonstrated that the residuals of both models lacked noticeable autocorrelation. The ARDL(3,3) model outperformed the AR(1) model, because it gave lower AIC and BIC values than the AR(1) model. Thus, we can conclude that the AR(3,3) model performs better and strikes a good balance between model fit and complexity. Moreover, since residuals from the ARDL model are not serially correlated, this model is more suitable for making unbiased forecasts.
+
+The ARDL(3,3) model uses lags of both dependant and independant variables predict future gasoline consumption. Intuitively, this can help decision-makers understand the factors influencing gasoline consumption. Thus, the ARDL(3,3) model works not only in statistical measures but is also a practical choice for predicting gasoline use in the real world.
+
+
+# Q5. Suggest any limitations faced or improvements which could’ve been made to the model based on your findings, which should be supplemented with statistical tests(eg. degree of freedom restrictions, reverse causality).
+
+Some improvements we could have made to our model are:   
+
+- In future work, we should find a way to correct the skewness of the independent variables, including 'price' and 'cars'
+- We should also have checked for collinearity, since we saw that 'cars' and 'price' were also highly correlated variables.  
+- Differencing our variables would make sure we don't violate the stationarity assumption, and this would be a useful method to avoid biased estimates, and hence inccurate forecasts.
